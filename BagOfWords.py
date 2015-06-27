@@ -1,6 +1,6 @@
 # Bag of Words Meets Bags of Popcorn problem
 # Kalev Roomann-Kurrik
-# Last Modified: June 17, 2015
+# Last Modified: June 27, 2015
 
 # module imports
 import pandas as pd
@@ -14,23 +14,40 @@ from nltk.corpus import stopwords
 # read in the labeled training data
 train = pd.read_csv("labeledTrainData.tsv", header=0, delimiter="\t", quoting=3)
 
-# print train.shape
-# print train.columns.values
-# print train["review"][0]
+# clean and pre-process a single movie review
+# input: single string (a raw movie review)
+# output: single string (a preprocessed movie review)
+def review_to_words(raw_review):
+  # Remove HTML
+  review_text = BeautifulSoup(raw_review).get_text()
 
-# initialize the BeautifulSoup object on a single movie review
-example1 = BeautifulSoup(train["review"][0])
+  # Remove non-letters
+  letters_only = re.sub("[^a-zA-Z]", " ", review_text)
 
-# print the raw review and then the output of get_text(), for comparison
-# print train["review"][0]
-# print example1.get_text()
+  # Convert to lower case and tokenize into individual words
+  words = letters_only.lower().split()
 
-# use regex to do a find-and-replace
-letters_only = re.sub("[^a-zA-Z]", " ", example1.get_text())
-# print letters_only
-lower_case = letters_only.lower()
-words = lower_case.split()
+  # Convert stop words list into a set (faster to search in Python)
+  stops = set(stopwords.words("english"))
 
-# remove stop words from "words"
-words = [w for w in words if not w in stopwords.words("english")]
-print words
+  # Remove stop words
+  meaningful_words = [w for w in words if not w in stops]
+
+  # Join the words back into one string separated by space, and return the result
+  return(" ".join(meaningful_words))
+
+# Get number of reviews based on the dataframe column size
+num_reviews = train["review"].size
+
+# Initialize an empty list to hold the clean reviews
+clean_train_reviews = []
+
+print "Cleaning and parsing the training set of moview reviews...\n"
+
+# Loop over each review
+for i in xrange(0, num_reviews):
+  if((i+1) % 1000 == 0):
+    print "Review %d of %d\n" % (i+1, num_reviews)
+  # Call our function for each review and add the result to the list of clean reviews
+  clean_train_reviews.append(review_to_words(train["review"][i]))
+
