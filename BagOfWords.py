@@ -10,6 +10,7 @@ import nltk
 # nltk.download() # Download text data sets, including stop words
 from nltk.corpus import stopwords
 # print stopwords.words("english")
+from sklearn.feature_extraction.text import CountVectorizer
 
 # read in the labeled training data
 train = pd.read_csv("labeledTrainData.tsv", header=0, delimiter="\t", quoting=3)
@@ -51,3 +52,17 @@ for i in xrange(0, num_reviews):
   # Call our function for each review and add the result to the list of clean reviews
   clean_train_reviews.append(review_to_words(train["review"][i]))
 
+print "Creating the bag of words...\n"
+
+# Initialize the "CountVectorizer" object
+vectorizer = CountVectorizer(analyzer = "word", \
+                             tokenizer = None, \
+                             preprocessor = None, \
+                             stop_words = None, \
+                             max_features = 5000)
+
+# Use the fit_transform() method to fit the model and learn the vocabulary, and also transform the training dat into feature vectors. The input to fit_transform should be a list of strings
+train_data_features = vectorizer.fit_transform(clean_train_reviews)
+
+# Numpy arrays are easy to work with, so convert the result to an array
+train_data_features = train_data_features.toarray()
