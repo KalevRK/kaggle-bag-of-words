@@ -1,4 +1,5 @@
 # Data
 *.tsv
+*.csv
 
 .DS_Store
