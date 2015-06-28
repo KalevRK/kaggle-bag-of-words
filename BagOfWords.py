@@ -11,6 +11,7 @@ import nltk
 from nltk.corpus import stopwords
 # print stopwords.words("english")
 from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.ensemble import RandomForestClassifier
 
 # read in the labeled training data
 train = pd.read_csv("labeledTrainData.tsv", header=0, delimiter="\t", quoting=3)
@@ -66,3 +67,11 @@ train_data_features = vectorizer.fit_transform(clean_train_reviews)
 
 # Numpy arrays are easy to work with, so convert the result to an array
 train_data_features = train_data_features.toarray()
+
+print "Training the random forest..."
+
+# Initialize a Random Forest classifier with 100 trees
+forest = RandomForestClassifier(n_estimators = 100)
+
+# Fit the forest to the training set, using the bag of words as features and the sentiment labels as the response variable
+forest = forest.fit(train_data_features, train["sentiment"])
