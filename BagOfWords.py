@@ -1,6 +1,7 @@
 # Bag of Words Meets Bags of Popcorn problem
+# Bag of Words approach
 # Kalev Roomann-Kurrik
-# Last Modified: June 27, 2015
+# Last Modified: June 28, 2015
 
 # module imports
 import pandas as pd
