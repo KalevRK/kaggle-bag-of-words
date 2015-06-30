@@ -13,6 +13,8 @@ import logging
 from gensim.models import word2vec
 import numpy as np
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.cluster import KMeans
+import time
 
 # Configure logging for word2vec output
 logging.basicConfig(format = '%(asctime)s : %(levelname)s : %(message)s', level = logging.INFO)
@@ -97,6 +99,9 @@ model.init_sims(replace = True)
 model_name = "300features_40minwords_10context"
 model.save(model_name)
 
+
+# Approach 1: Vector Averaging
+
 def makeFeatureVec(words, model, num_features):
   # Average all of the word vectors in a given paragraph
 
@@ -171,3 +176,65 @@ result = forest.predict(testDataVecs)
 # Write the test results
 output = pd.DataFrame(data={"id": test["id"], "sentiment": result})
 output.to_csv("Word2Vec_AverageVectors.csv", index = False, quoting = 3)
+
+# Approach 2: Clustering
+start = time.time()
+
+# Set K (num_clusters) to be 1/5th of the vocabulary size, or an average of 5 words per cluster
+word_vectors = model.syn0
+num_clusters = word_vectors.shape[0] / 5
+
+# Initialize a k-means object and use it to extract centroids
+kmeans_clustering = KMeans(n_clusters = num_clusters)
+idx = kmeans_clustering.fit_predict(word_vectors)
+
+# Get the end time and print how long the process took
+end = time.time()
+elapsed = end - start
+print "Time taken for K Means clustering: ", elapsed, "seconds."
+
+# Create a Word / Index dictionary, mapping each vocabulary word to a cluster number
+word_centroid_map = dict(zip(model.index2word, idx))
+
+def create_bag_of_centroids(wordlist, word_centroid_map):
+  num_centroids = max(word_centroid_map.values()) + 1
+
+  # Pre-allocate the bag of centroids vector (for speed)
+  bag_of_centroids = np.zeros(num_centroids, dtype = "float32")
+
+  # Loop over the words in the review. If the word is in the vocabulary, find which cluster it belongs to, and increment that cluster count by one
+  for word in wordlist:
+    if word in word_centroid_map:
+      index = word_centroid_map[word]
+      bag_of_centroids[index] += 1
+
+  # Return the bag of centroids
+  return bag_of_centroids
+
+# Pre-allocate an array for the training set bags of centroids (for speed)
+train_centroids = np.zeros((train["review"].size, num_clusters), dtype = "float32")
+
+# Transform the training set reviews into bags of centroids
+counter = 0
+for review in clean_train_reviews:
+  train_centroids[counter] = create_bag_of_centroids(review, word_centroid_map)
+  counter += 1
+
+# Repeat for test reviews
+test_centroids = np.zeros((test["review"].size, num_clusters), dtype = "float32")
+
+counter = 0
+for review in clean_test_reviews:
+  test_centroids[counter] = create_bag_of_centroids(review, word_centroid_map)
+  counter += 1
+
+# Fit a random forest and extract predictions
+forest = RandomForestClassifier(n_estimators = 100)
+
+print "Fitting a random forest to labeled training data..."
+forest = forest.fit(train_centroids, train["sentiment"])
+result = forest.predict(test_centroids)
+
+# Write the test results
+output = pd.DataFrame(data = {"id": test["id"], "sentiment": result})
+output.to_csv("BagOfCentroids.csv", index = False, quoting = 3)
