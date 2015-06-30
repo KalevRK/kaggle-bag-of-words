@@ -11,6 +11,8 @@ import nltk.data
 from nltk.corpus import stopwords
 import logging
 from gensim.models import word2vec
+import numpy as np
+from sklearn.ensemble import RandomForestClassifier
 
 # Configure logging for word2vec output
 logging.basicConfig(format = '%(asctime)s : %(levelname)s : %(message)s', level = logging.INFO)
@@ -89,8 +91,83 @@ print "Training model..."
 model = word2vec.Word2Vec(sentences, workers = num_workers, size = num_features, min_count = min_word_count, window = context, sample = downsampling)
 
 # If you don't plan to train the model any further, calling init_sims will make the model much more memory-efficient
-model.init_sims(replace=True)
+model.init_sims(replace = True)
 
 # Can save the model for later use. You can load it later using Word2Vec.load()
 model_name = "300features_40minwords_10context"
 model.save(model_name)
+
+def makeFeatureVec(words, model, num_features):
+  # Average all of the word vectors in a given paragraph
+
+  # Pre-initialize an empty numpy array (for speed)
+  featureVec = np.zeros((num_features,), dtype = "float32")
+  nwords = 0
+
+  # Convert index2word (a list that contains the names of the words in the model's vocabulary) to a set for speed
+  index2word_set = set(model.index2word)
+
+  # Loop over each word in the review, and if it's in the model's vocabulary, add its feature vector to the total
+  for word in words:
+    if word in index2word_set:
+      nwords = nwords + 1
+      featureVec = np.add(featureVec, model[word])
+
+  # Divide the result by the number of words to get the average
+  featureVec = np.divide(featureVec, nwords)
+  return featureVec
+
+def getAvgFeatureVecs(reviews, model, num_features):
+  # Given a set of reviews (each one a list of words), calculate the average feature vector for each one and return a 2D numpy array
+
+  # Initialize a counter
+  counter = 0
+
+  # Preallocate a 2D numpy array, for speed
+  reviewFeatureVecs = np.zeros((len(reviews), num_features), dtype = "float32")
+
+  # Loop through the reviews
+  for review in reviews:
+    # Print a status message every 1000th review
+    if counter % 1000. == 0.:
+      print "Review %d of %d" % (counter, len(reviews))
+
+    # Call the function that makes average feature vectors
+    reviewFeatureVecs[counter] = makeFeatureVec(review, model, num_features)
+
+    # Increment the counter
+    counter = counter + 1
+
+  return reviewFeatureVecs
+
+# Calculate the average feature vectors for training and testing sets, using the functions defined above. Remove stop words to cut down on noise.
+
+clean_train_reviews = []
+
+for review in train["review"]:
+  clean_train_reviews.append(review_to_wordlist(review, remove_stopwords = True))
+
+trainDataVecs = getAvgFeatureVecs(clean_train_reviews, model, num_features)
+
+print "Creating average feature vecs for test reviews"
+
+clean_test_reviews = []
+
+for review in test["review"]:
+  clean_test_reviews.append(review_to_wordlist(review, remove_stopwords = True))
+
+testDataVecs = getAvgFeatureVecs(clean_test_reviews, model, num_features)
+
+# Fit a random forest to the training data, using 100 trees
+forest = RandomForestClassifier(n_estimators = 100)
+
+print "Fitting a random forest to labeled training data..."
+
+forest = forest.fit(trainDataVecs, train["sentiment"])
+
+# Test & extract results
+result = forest.predict(testDataVecs)
+
+# Write the test results
+output = pd.DataFrame(data={"id": test["id"], "sentiment": result})
+output.to_csv("Word2Vec_AverageVectors.csv", index = False, quoting = 3)
